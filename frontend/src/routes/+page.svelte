@@ -103,8 +103,9 @@
 
       <!-- Username -->
       <div class="space-y-1">
-        <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">Nombre de jugador</label>
+        <label for="username-input" class="text-xs font-medium text-gray-400 uppercase tracking-wider">Nombre de jugador</label>
         <input
+          id="username-input"
           bind:value={username}
           type="text"
           placeholder="ej. SnipeMaster"
@@ -115,7 +116,7 @@
 
       <!-- Match type -->
       <div class="space-y-1">
-        <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">Tipo de partida</label>
+        <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Tipo de partida</p>
         <div class="grid grid-cols-3 gap-2">
           {#each ['1v1', '2v2', '5v5'] as type}
             <button
@@ -133,7 +134,7 @@
       <!-- Team selector (hidden for 1v1) -->
       {#if matchType !== '1v1'}
         <div class="space-y-1">
-          <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">Equipo (al unirse)</label>
+          <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Equipo (al unirse)</p>
           <div class="grid grid-cols-2 gap-2">
             <button
               onclick={() => team = 'A'}

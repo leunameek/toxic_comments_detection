@@ -232,6 +232,7 @@
             <button
               onclick={sendChat}
               disabled={!chatInput.trim() || !gameSocket.connected}
+              aria-label="Enviar mensaje"
               class="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-4 rounded-lg text-sm font-semibold transition-colors shrink-0"
             >
               <i class="fa-solid fa-paper-plane"></i>
