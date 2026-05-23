@@ -94,6 +94,7 @@ async def _handle_chat(db, room: Room, user_id: str, text: str) -> dict:
             "text": text,
             "action": prediction["action"],
             "score": prediction["score"],
+            "top_features": prediction["top_features"],
             "auto_action": auto_action,
         },
         "auto_action": auto_action,

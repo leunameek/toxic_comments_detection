@@ -135,13 +135,26 @@
             <span class="{eventColors[event.type] ?? 'text-gray-400'} shrink-0 w-20 sm:w-24 truncate">{event.type}</span>
 
             {#if event.type === 'chat'}
-              <span class="{actionColor[(event.payload.action as string)] ?? ''} px-1.5 rounded text-[10px] shrink-0">
-                {event.payload.action}
-              </span>
-              <span class="text-white truncate">{event.payload.user_id}: {event.payload.text}</span>
-              {#if event.payload.score !== undefined}
-                <span class="text-gray-600 shrink-0">{(event.payload.score as number).toFixed(2)}</span>
-              {/if}
+              <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="{actionColor[(event.payload.action as string)] ?? ''} px-1.5 rounded text-[10px] shrink-0">
+                    {event.payload.action}
+                  </span>
+                  <span class="text-white truncate">{event.payload.user_id}: {event.payload.text}</span>
+                  {#if event.payload.score !== undefined}
+                    <span class="text-gray-600 shrink-0">{(event.payload.score as number).toFixed(2)}</span>
+                  {/if}
+                </div>
+                {#if (event.payload.top_features as string[])?.length}
+                  <div class="flex flex-wrap gap-1 pl-1">
+                    {#each event.payload.top_features as string[] as feature}
+                      <span class="bg-red-900/40 border border-red-800/50 text-red-300 text-[10px] px-1.5 py-px rounded font-sans">
+                        {feature}
+                      </span>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
 
             {:else if event.type === 'kill_feed'}
               <span class="text-yellow-300/70 truncate">{event.payload.text}</span>
