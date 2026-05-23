@@ -6,7 +6,7 @@ from ..models.moderation import ModerationAction
 from ..models.user import User
 
 SCORE_RESET_THRESHOLD = 0.60
-TIMEOUT_DURATION_SECONDS = 300  # 5 minutes
+TIMEOUT_DURATION_SECONDS = 30
 
 
 def _strikes_for_score(score: float) -> int:
@@ -67,10 +67,14 @@ def apply_strike(
     elif consequence == "KICK":
         # Kick: frontend removes player from session; status reflects severity
         user.status = "TIMEOUT"
-        user.timeout_until = datetime.now(timezone.utc) + timedelta(seconds=TIMEOUT_DURATION_SECONDS * 6)
+        user.timeout_until = datetime.now(timezone.utc) + timedelta(
+            seconds=TIMEOUT_DURATION_SECONDS * 6
+        )
     elif consequence == "TIMEOUT":
         user.status = "TIMEOUT"
-        user.timeout_until = datetime.now(timezone.utc) + timedelta(seconds=TIMEOUT_DURATION_SECONDS)
+        user.timeout_until = datetime.now(timezone.utc) + timedelta(
+            seconds=TIMEOUT_DURATION_SECONDS
+        )
         duration = TIMEOUT_DURATION_SECONDS
     elif consequence == "WARN":
         user.status = "WARNED"
