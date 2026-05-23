@@ -1,0 +1,12 @@
+.git
+.env
+.venv
+venv
+__pycache__
+*.py[cod]
+*.db
+*.db-wal
+*.db-shm
+frontend/
+tests/
+.claude

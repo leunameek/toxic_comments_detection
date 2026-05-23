@@ -1,0 +1,20 @@
+services:
+  backend:
+    build: .
+    env_file: .env
+    volumes:
+      - db_data:/app/data
+    environment:
+      DATABASE_URL: sqlite:////app/data/toxic_chat.db
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  db_data:
