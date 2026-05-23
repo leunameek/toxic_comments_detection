@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-game-bg: #0a0a0f;
+  --color-game-card: #12121e;
+  --color-game-border: #1e1e35;
+  --color-team-a: #3b82f6;
+  --color-team-b: #ef4444;
+  --color-toxic: #ef4444;
+  --color-warn: #f59e0b;
+  --color-safe: #22c55e;
+  --color-muted: #6b7280;
+}
+
+body {
+  background-color: var(--color-game-bg);
+  color: #e5e7eb;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2d2d4e; border-radius: 2px; }

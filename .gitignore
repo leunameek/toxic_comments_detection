@@ -1,0 +1,69 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Environment & secrets ─────────────────────────────────────────────────────
+.env
+.env.example
+.env.local
+.env.*.local
+
+# ── Database ──────────────────────────────────────────────────────────────────
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ── ML model (binary, re-generate with training script) ───────────────────────
+ml/*.joblib
+ml/*.pkl
+ml/*.h5
+ml/*.pt
+ml/*.bin
+# keep the placeholder so the folder is tracked
+!ml/.gitkeep
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# lock files — keep pnpm-lock.yaml, ignore npm artifact
+frontend/package-lock.json
+
+# ── Editor & OS ───────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Claude Code ───────────────────────────────────────────────────────────────
+.claude
+
+toxic_chat_api_spec.md
