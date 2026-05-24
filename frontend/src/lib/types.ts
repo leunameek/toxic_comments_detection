@@ -67,6 +67,17 @@ export interface ActiveRoom {
   players_online: number;
 }
 
+export interface PlaygroundResult {
+  label: number;
+  label_text: string;
+  score: number;
+  action: ToxicAction;
+  top_features: string[];
+  cleaned_text: string;
+  language: string;
+  processing_ms: number;
+}
+
 export interface DashboardEvent {
   room: string;
   type: string;

@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Toxic Chat Detector — Playground</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #080812;
+      --surface:  #10101e;
+      --surface2: #18182c;
+      --border:   #252540;
+      --text:     #dde1f0;
+      --muted:    #555878;
+      --accent:   #6366f1;
+
+      --approve: #22c55e;
+      --review:  #eab308;
+      --alert:   #f97316;
+      --block:   #ef4444;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #0c0c20 0%, #160530 50%, #0c0c20 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      color: #fff;
+    }
+
+    .logo h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo p {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    .badge {
+      padding: 0.3rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: rgba(99,102,241,0.12);
+      border: 1px solid rgba(99,102,241,0.28);
+      color: #a5b4fc;
+    }
+
+    /* ── Layout ── */
+    main {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 1.25rem;
+      padding: 1.25rem 2rem 2rem;
+      flex: 1;
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+
+    .card-body { padding: 1.5rem; }
+
+    /* ── Input ── */
+    .field-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 110px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      padding: 0.875rem 1rem;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: var(--muted); }
+
+    .input-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.5rem;
+    }
+
+    .hint { font-size: 0.7rem; color: var(--muted); }
+    .char-count { font-size: 0.7rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .char-count.warn { color: var(--alert); }
+
+    .btn-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .btn {
+      padding: 0.6rem 1.4rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.18s;
+      line-height: 1;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+      box-shadow: 0 0 20px rgba(99,102,241,0.25);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      opacity: 0.88;
+      transform: translateY(-1px);
+      box-shadow: 0 0 28px rgba(99,102,241,0.4);
+    }
+
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .btn-ghost {
+      background: var(--surface2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover { color: var(--text); border-color: #3a3a5a; }
+
+    /* ── Loader ── */
+    .loader {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .loader.on { display: flex; }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error ── */
+    .error-box {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 8px;
+      color: #fca5a5;
+      font-size: 0.8rem;
+    }
+
+    .error-box.on { display: block; }
+
+    /* ── Divider ── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+
+    .section-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1.125rem;
+    }
+
+    /* ── Results ── */
+    #results { display: none; }
+    #results.on { display: block; animation: fadeUp 0.3s ease; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Score bar ── */
+    .score-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.375rem;
+      margin-bottom: 1rem;
+    }
+
+    .score-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 1rem;
+    }
+
+    .score-num {
+      font-size: 2.5rem;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.5s;
+    }
+
+    .score-sub {
+      font-size: 0.68rem;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .action-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 1rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      transition: all 0.4s;
+    }
+
+    .track {
+      position: relative;
+      height: 10px;
+      background: var(--surface);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      border-radius: 999px;
+      width: 0%;
+      transition: width 0.9s cubic-bezier(0.34, 1.4, 0.64, 1);
+      background: linear-gradient(
+        to right,
+        var(--approve) 0%,
+        var(--review) 38%,
+        var(--alert) 52%,
+        var(--block) 88%,
+        var(--block) 100%
+      );
+    }
+
+    .markers {
+      display: flex;
+      position: relative;
+      height: 28px;
+      margin-top: 4px;
+    }
+
+    .marker {
+      position: absolute;
+      transform: translateX(-50%);
+      font-size: 0.62rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.3;
+      white-space: nowrap;
+    }
+
+    /* ── Meta row ── */
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.125rem;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.7rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .chip strong { color: var(--text); font-weight: 600; }
+
+    /* ── Why section ── */
+    .why-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.375rem;
+      margin-bottom: 1rem;
+    }
+
+    .why-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .cleaned-box {
+      font-size: 0.875rem;
+      line-height: 1.8;
+      padding: 0.75rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      word-break: break-word;
+      min-height: 2.5rem;
+    }
+
+    .cleaned-box mark {
+      background: transparent;
+      font-weight: 700;
+      border-radius: 3px;
+      padding: 1px 3px;
+    }
+
+    .features-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .ftag {
+      padding: 0.22rem 0.6rem;
+      border-radius: 5px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      border: 1px solid transparent;
+      cursor: default;
+    }
+
+    /* ── Alert banner ── */
+    .alert-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.625rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      border: 1px solid;
+    }
+
+    .alert-banner.safe   { background: rgba(34,197,94,0.07);  border-color: rgba(34,197,94,0.2);  color: #86efac; }
+    .alert-banner.mid    { background: rgba(234,179,8,0.07);  border-color: rgba(234,179,8,0.2);  color: #fde047; }
+    .alert-banner.danger { background: rgba(249,115,22,0.08); border-color: rgba(249,115,22,0.25); color: #fdba74; }
+    .alert-banner.severe { background: rgba(239,68,68,0.08);  border-color: rgba(239,68,68,0.25); color: #fca5a5; }
+
+    /* ── History ── */
+    .history-wrap {
+      position: sticky;
+      top: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .history-head {
+      padding: 1rem 1.25rem 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .history-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .clr-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 0.68rem;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .clr-btn:hover { color: var(--text); }
+
+    .history-body {
+      padding: 0.5rem;
+      overflow-y: auto;
+      max-height: calc(100vh - 200px);
+    }
+
+    .h-empty {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.78rem;
+      padding: 2rem 1rem;
+      line-height: 1.6;
+    }
+
+    .h-item {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      padding: 0.55rem 0.625rem;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border: 1px solid transparent;
+    }
+
+    .h-item:hover {
+      background: var(--surface2);
+      border-color: var(--border);
+    }
+
+    .h-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .h-text {
+      flex: 1;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+    }
+
+    .h-score {
+      font-size: 0.7rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 800px) {
+      main { grid-template-columns: 1fr; }
+      .history-wrap { position: static; }
+      .history-body { max-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon"><i class="fa-solid fa-shield-halved"></i></div>
+    <div>
+      <h1>Toxic Chat Detector</h1>
+      <p>Universidad Militar Nueva Granada — IA</p>
+    </div>
+  </div>
+  <span class="badge">Playground</span>
+</header>
+
+<main>
+  <!-- Left column -->
+  <div>
+    <div class="card">
+      <div class="card-body">
+        <p class="field-label">Mensaje a analizar</p>
+        <textarea id="inp" placeholder="Escribe cualquier mensaje y el modelo te dirá si es tóxico y por qué…" maxlength="500"></textarea>
+        <div class="input-footer">
+          <span class="hint">Ctrl+Enter para analizar</span>
+          <span class="char-count" id="cc">0 / 500</span>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" id="analyze-btn" onclick="analyze()">Analizar</button>
+          <button class="btn btn-ghost" onclick="clearAll()">Limpiar</button>
+          <div class="loader" id="loader"><div class="spinner"></div> Analizando…</div>
+        </div>
+
+        <div class="error-box" id="err"></div>
+
+        <!-- Results -->
+        <div id="results">
+          <hr class="divider" />
+          <p class="section-label">Resultado del Modelo</p>
+
+          <!-- Score bar -->
+          <div class="score-card">
+            <div class="score-top">
+              <div>
+                <div class="score-sub">Puntuación de toxicidad</div>
+                <div class="score-num" id="score-num">0%</div>
+              </div>
+              <span class="action-pill" id="action-pill"></span>
+            </div>
+
+            <div class="track"><div class="fill" id="fill"></div></div>
+            <div class="markers">
+              <div class="marker" style="left:0%">0%</div>
+              <div class="marker" style="left:40%">40%<br><span style="color:var(--review)">REVIEW</span></div>
+              <div class="marker" style="left:50%">50%<br><span style="color:var(--alert)">ALERT</span></div>
+              <div class="marker" style="left:90%">90%<br><span style="color:var(--block)">BLOCK</span></div>
+              <div class="marker" style="left:100%">100%</div>
+            </div>
+          </div>
+
+          <!-- Meta chips -->
+          <div class="meta-row">
+            <div class="chip">Veredicto <strong id="m-label"></strong></div>
+            <div class="chip"><i class="fa-solid fa-bolt"></i> <strong id="m-ms"></strong></div>
+            <div class="chip"><i class="fa-solid fa-globe"></i> <strong id="m-lang"></strong></div>
+          </div>
+
+          <!-- Why -->
+          <div class="why-card">
+            <p class="why-label">Texto procesado por el modelo</p>
+            <div class="cleaned-box" id="cleaned"></div>
+
+            <p class="why-label">Términos que influyeron en la decisión</p>
+            <div class="features-row" id="features"></div>
+          </div>
+
+          <!-- Banner -->
+          <div class="alert-banner" id="banner"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History sidebar -->
+  <div>
+    <div class="history-wrap card">
+      <div class="history-head">
+        <span class="history-title">Historial</span>
+        <button class="clr-btn" onclick="clearHistory()">Borrar</button>
+      </div>
+      <div class="history-body" id="hist-body">
+        <p class="h-empty">Sin análisis aún.<br>¡Prueba un mensaje!</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  const API = '/api/v1/playground/classify';
+
+  const COLORS = { APPROVE:'#22c55e', REVIEW:'#eab308', TOXIC_ALERT:'#f97316', BLOCK:'#ef4444' };
+  const ICONS  = {
+    APPROVE:     '<i class="fa-solid fa-circle-check"></i>',
+    REVIEW:      '<i class="fa-solid fa-magnifying-glass"></i>',
+    TOXIC_ALERT: '<i class="fa-solid fa-triangle-exclamation"></i>',
+    BLOCK:       '<i class="fa-solid fa-ban"></i>',
+  };
+  const LABELS = { APPROVE:'Aprobado', REVIEW:'Revisión', TOXIC_ALERT:'Alerta tóxico', BLOCK:'Bloqueado' };
+  const LANGS  = { es:'Español', en:'English', pt:'Português', fr:'Français', de:'Deutsch', it:'Italiano' };
+
+  const BANNERS = {
+    APPROVE:     { cls:'safe',   txt:'<i class="fa-solid fa-circle-check"></i> En una sesión real este mensaje se entregaría normalmente.' },
+    REVIEW:      { cls:'mid',    txt:'<i class="fa-solid fa-magnifying-glass"></i> En una sesión real este mensaje quedaría en cola de revisión humana.' },
+    TOXIC_ALERT: { cls:'danger', txt:'<i class="fa-solid fa-triangle-exclamation"></i> En una sesión real esto activaría una alerta y posiblemente un strike automático.' },
+    BLOCK:       { cls:'severe', txt:'<i class="fa-solid fa-ban"></i> En una sesión real este mensaje sería bloqueado y el usuario recibiría strikes inmediatos.' },
+  };
+
+  let history = [];
+
+  /* ── Char counter ── */
+  document.getElementById('inp').addEventListener('input', e => {
+    const n = e.target.value.length;
+    const el = document.getElementById('cc');
+    el.textContent = `${n} / 500`;
+    el.classList.toggle('warn', n > 450);
+  });
+
+  document.getElementById('inp').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) analyze();
+  });
+
+  /* ── Analyze ── */
+  async function analyze() {
+    const text = document.getElementById('inp').value.trim();
+    if (!text) { flash(); return; }
+
+    setLoading(true);
+    clearError();
+
+    try {
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showError(data.detail || 'Error al analizar.'); return; }
+      render(text, data);
+      pushHistory(text, data);
+    } catch {
+      showError('No se pudo conectar con el servidor.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /* ── Render result ── */
+  function render(originalText, d) {
+    const pct   = Math.round(d.score * 100);
+    const color = COLORS[d.action];
+
+    document.getElementById('results').classList.add('on');
+
+    /* Score bar */
+    setTimeout(() => document.getElementById('fill').style.width = pct + '%', 40);
+    const sn = document.getElementById('score-num');
+    sn.textContent = pct + '%';
+    sn.style.color  = color;
+
+    /* Action pill */
+    const pill = document.getElementById('action-pill');
+    pill.innerHTML = `${ICONS[d.action]} ${LABELS[d.action]}`;
+    pill.style.cssText = `background:${color}18;color:${color};border:1px solid ${color}40;`;
+
+    /* Meta chips */
+    const labelEl = document.getElementById('m-label');
+    labelEl.textContent = d.label_text;
+    labelEl.style.color = d.label === 1 ? COLORS.TOXIC_ALERT : COLORS.APPROVE;
+    document.getElementById('m-ms').textContent   = d.processing_ms.toFixed(1) + 'ms';
+    document.getElementById('m-lang').textContent = LANGS[d.language] || d.language.toUpperCase();
+
+    /* Cleaned text with highlights */
+    const sortedFeatures = [...d.top_features].sort((a, b) => b.length - a.length);
+    let highlighted = esc(d.cleaned_text || '');
+    if (d.label === 1) {
+      sortedFeatures.forEach(f => {
+        const re = new RegExp(esc(f).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+        highlighted = highlighted.replace(re,
+          `<mark style="color:${color};background:${color}20;border-radius:3px;padding:0 2px">$&</mark>`);
+      });
+    }
+    document.getElementById('cleaned').innerHTML =
+      highlighted || `<span style="color:var(--muted);font-style:italic">Vacío tras limpiar</span>`;
+
+    /* Feature chips */
+    const fw = document.getElementById('features');
+    fw.innerHTML = '';
+    if (!d.top_features.length) {
+      fw.innerHTML = `<span style="font-size:.75rem;color:var(--muted)">Sin términos decisivos detectados.</span>`;
+    } else {
+      d.top_features.forEach((f, i) => {
+        const alpha = Math.round(Math.max(0.25, 1 - i * 0.14) * 0xff).toString(16).padStart(2,'0');
+        const el = document.createElement('span');
+        el.className = 'ftag';
+        el.textContent = f;
+        el.style.cssText = `background:${color}${alpha};color:${color};border-color:${color}44;`;
+        el.title = `Término #${i+1} más influyente`;
+        fw.appendChild(el);
+      });
+    }
+
+    /* Banner */
+    const b = BANNERS[d.action];
+    const banner = document.getElementById('banner');
+    banner.className = `alert-banner ${b.cls}`;
+    banner.innerHTML = b.txt;
+  }
+
+  /* ── History ── */
+  function pushHistory(text, data) {
+    history.unshift({ text, data });
+    if (history.length > 60) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const body = document.getElementById('hist-body');
+    if (!history.length) {
+      body.innerHTML = '<p class="h-empty">Sin análisis aún.<br>¡Prueba un mensaje!</p>';
+      return;
+    }
+    body.innerHTML = history.map((it, i) => `
+      <div class="h-item" onclick="restoreItem(${i})">
+        <div class="h-dot" style="background:${COLORS[it.data.action]}"></div>
+        <span class="h-text">${esc(it.text)}</span>
+        <span class="h-score">${Math.round(it.data.score*100)}%</span>
+      </div>
+    `).join('');
+  }
+
+  function restoreItem(i) {
+    const it = history[i];
+    document.getElementById('inp').value = it.text;
+    document.getElementById('cc').textContent = `${it.text.length} / 500`;
+    render(it.text, it.data);
+  }
+
+  function clearHistory() { history = []; renderHistory(); }
+
+  /* ── Helpers ── */
+  function clearAll() {
+    document.getElementById('inp').value = '';
+    document.getElementById('cc').textContent = '0 / 500';
+    document.getElementById('results').classList.remove('on');
+    document.getElementById('fill').style.width = '0%';
+    clearError();
+  }
+
+  function setLoading(on) {
+    document.getElementById('loader').classList.toggle('on', on);
+    document.getElementById('analyze-btn').disabled = on;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('err');
+    el.textContent = msg;
+    el.classList.add('on');
+  }
+
+  function clearError() { document.getElementById('err').classList.remove('on'); }
+
+  function flash() {
+    const ta = document.getElementById('inp');
+    ta.style.borderColor = COLORS.BLOCK;
+    setTimeout(() => ta.style.borderColor = '', 600);
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>

@@ -52,6 +52,7 @@ class Room:
     rounds_history: list[dict] = field(default_factory=list)
     status: str = "WAITING"
     kicked_users: set[str] = field(default_factory=set)
+    past_players: dict[str, str] = field(default_factory=dict)  # user_id → "A" or "B"
     match_task: asyncio.Task | None = None
 
     @property

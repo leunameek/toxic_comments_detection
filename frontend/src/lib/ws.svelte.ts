@@ -9,6 +9,7 @@ import type {
 
 class GameSocketManager {
   ws: WebSocket | null = null;
+  private connectArgs: { url: string; myTeam: Team | null; userId: string } | null = null;
 
   connected = $state(false);
   room = $state<RoomState | null>(null);
@@ -24,6 +25,7 @@ class GameSocketManager {
   myUserId = $state<string>('');
 
   connect(url: string, myTeam: Team | null = null, userId = '') {
+    this.connectArgs = { url, myTeam, userId };
     this.myUserId = userId;
     this.reset();
     this.ws = new WebSocket(url);
@@ -129,6 +131,11 @@ class GameSocketManager {
           if (p.action === 'TIMEOUT') {
             this.timedOut = true;
           }
+          if (p.action === 'PARDON') {
+            this.timedOut = false;
+            this.error = null;
+            this.errorCode = null;
+          }
           if (p.action === 'BAN') {
             this.error = 'Has sido baneado permanentemente.';
             this.errorCode = 'BANNED';
@@ -140,6 +147,13 @@ class GameSocketManager {
         this.error = p.message as string;
         this.errorCode = (p.code as string) ?? null;
         break;
+    }
+  }
+
+  reconnect() {
+    if (this.connectArgs) {
+      const { url, myTeam, userId } = this.connectArgs;
+      this.connect(url, myTeam, userId);
     }
   }
 
@@ -209,19 +223,58 @@ class DashboardSocketManager {
       return;
     }
 
+    if (event.type === 'room_created') {
+      const exists = this.rooms.some(r => r.code === (p.code as string));
+      if (!exists) {
+        this.rooms = [...this.rooms, {
+          code: p.code as string,
+          match_type: p.match_type as never,
+          status: p.status as string ?? 'WAITING',
+          score_a: 0, score_b: 0, current_round: 0,
+          team_a: [], team_b: [],
+          players_online: p.players_online as number ?? 0,
+        }];
+      }
+      return;
+    }
+
+    if (event.type === 'room_closed') {
+      this.rooms = this.rooms.filter(r => r.code !== (p.code as string));
+      return;
+    }
+
     // Log all other events to the live feed
     this.events = [
       { room: event.room || '—', type: event.type, payload: p, timestamp: new Date() },
       ...this.events,
     ].slice(0, 200);
 
-    // Sync room state from events
-    if (event.room && event.type === 'round_end') {
-      this.rooms = this.rooms.map((r) =>
-        r.code === event.room
-          ? { ...r, score_a: p.score_a as number, score_b: p.score_b as number, current_round: p.round as number }
-          : r
-      );
+    // Sync room state from broadcast events
+    if (event.room) {
+      if (event.type === 'round_end') {
+        this.rooms = this.rooms.map(r =>
+          r.code === event.room
+            ? { ...r, score_a: p.score_a as number, score_b: p.score_b as number, current_round: p.round as number }
+            : r
+        );
+      }
+      if (event.type === 'player_joined' || event.type === 'player_left') {
+        this.rooms = this.rooms.map(r =>
+          r.code === event.room
+            ? { ...r, players_online: ((p.team_a as string[])?.length ?? 0) + ((p.team_b as string[])?.length ?? 0) }
+            : r
+        );
+      }
+      if (event.type === 'match_start') {
+        this.rooms = this.rooms.map(r =>
+          r.code === event.room ? { ...r, status: 'IN_PROGRESS' } : r
+        );
+      }
+      if (event.type === 'match_end') {
+        this.rooms = this.rooms.map(r =>
+          r.code === event.room ? { ...r, status: 'FINISHED' } : r
+        );
+      }
     }
 
     if (event.type === 'moderation') {
@@ -233,6 +286,34 @@ class DashboardSocketManager {
         };
       }
     }
+
+    if (event.type === 'mod_ack' && (p.success as boolean)) {
+      const uid = p.user_id as string;
+      if (this.players[uid]) {
+        const STATUS_MAP: Record<string, string> = {
+          WARN:    'WARNED',
+          TIMEOUT: 'TIMEOUT',
+          KICK:    'TIMEOUT',
+          BAN:     'BANNED',
+          PARDON:  'ACTIVE',
+        };
+        const newStatus = STATUS_MAP[p.action as string];
+        if (newStatus) {
+          this.players = {
+            ...this.players,
+            [uid]: {
+              ...this.players[uid],
+              status: newStatus as import('./types').UserStatus,
+              ...(p.action === 'PARDON' ? { strikes: 0 } : {}),
+            },
+          };
+        }
+      }
+    }
+  }
+
+  sendModAction(userId: string, action: string, reason = 'Acción manual del moderador') {
+    this.ws?.send(JSON.stringify({ type: 'mod_action', payload: { user_id: userId, action, reason } }));
   }
 
   disconnect() {

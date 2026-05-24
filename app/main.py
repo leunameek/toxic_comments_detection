@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .database import Base, engine
-from .routers import classify_router, users_router, sessions_router, moderation_router, metrics_router
+from .routers import classify_router, users_router, sessions_router, moderation_router, metrics_router, playground_router
 from .websocket.router import router as ws_router
 from .services import classifier
 
@@ -49,6 +49,7 @@ app.include_router(sessions_router, prefix=PREFIX)
 app.include_router(moderation_router, prefix=PREFIX)
 app.include_router(metrics_router, prefix=PREFIX)
 app.include_router(ws_router)  # WebSocket routes have no prefix — /ws/...
+app.include_router(playground_router, prefix=PREFIX)
 
 
 @app.get(f"{PREFIX}/health", tags=["Health"])

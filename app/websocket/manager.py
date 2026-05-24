@@ -39,15 +39,18 @@ class ConnectionManager:
         except Exception:
             pass
 
-    def remove_player(self, code: str, user_id: str) -> None:
+    def remove_player(self, code: str, user_id: str) -> bool:
+        """Remove player from room. Returns True if the room was fully destroyed."""
         room = self.rooms.get(code)
         if not room:
-            return
+            return False
         room.connections.pop(user_id, None)
         if not room.connections:
             if room.match_task and not room.match_task.done():
                 room.match_task.cancel()
             self.rooms.pop(code, None)
+            return True
+        return False
 
     def room_snapshot(self) -> list[dict]:
         return [

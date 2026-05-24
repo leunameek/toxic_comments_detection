@@ -10,16 +10,21 @@
 
   let chatInput = $state('');
   let chatEl = $state<HTMLDivElement | null>(null);
+  let rejoining = $state(false);
 
-  // Navigate home if kicked or banned
+  // Permanent ban: always redirect
   $effect(() => {
-    if (gameSocket.kicked) {
-      goto('/?reason=kicked');
-    }
     if (gameSocket.errorCode === 'BANNED') {
       goto('/?reason=banned');
     }
   });
+
+  function tryRejoin() {
+    rejoining = true;
+    gameSocket.reconnect();
+    // Give the socket time to connect; rejoining flag clears on connect/error
+    setTimeout(() => { rejoining = false; }, 4000);
+  }
 
   // Action color map
   const actionColor: Record<string, string> = {
@@ -114,6 +119,56 @@
               {gameSocket.room.usernames[uid] ?? uid}{uid === userId ? ' ★' : ''}
             </span>
           {/each}
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Disconnected / kicked overlay -->
+  {#if !gameSocket.connected && !gameSocket.matchOver}
+    <div class="fixed inset-0 z-40 bg-black/80 flex items-center justify-center p-4">
+      <div class="bg-[#12121e] border rounded-xl p-6 max-w-sm w-full text-center space-y-4
+        {gameSocket.kicked || gameSocket.errorCode === 'KICKED' ? 'border-red-800/60' : 'border-[#1e1e35]'}">
+
+        {#if gameSocket.kicked || gameSocket.errorCode === 'KICKED'}
+          <div class="w-12 h-12 bg-red-900/40 rounded-full flex items-center justify-center mx-auto">
+            <i class="fa-solid fa-person-walking-arrow-right text-red-400 text-xl"></i>
+          </div>
+          <div>
+            <p class="text-white font-bold">Fuiste expulsado</p>
+            <p class="text-gray-500 text-sm mt-1">
+              {gameSocket.errorCode === 'KICKED'
+                ? 'Aún estás sancionado. Espera a que un moderador levante la sanción e inténtalo de nuevo.'
+                : 'Un moderador te ha expulsado de la sala.'}
+            </p>
+          </div>
+        {:else}
+          <div class="w-12 h-12 bg-[#1e1e35] rounded-full flex items-center justify-center mx-auto">
+            <i class="fa-solid fa-plug-circle-xmark text-gray-400 text-xl"></i>
+          </div>
+          <div>
+            <p class="text-white font-bold">Desconectado</p>
+            <p class="text-gray-500 text-sm mt-1">Perdiste la conexión con la sala.</p>
+          </div>
+        {/if}
+
+        <div class="flex flex-col gap-2">
+          <button
+            onclick={tryRejoin}
+            disabled={rejoining}
+            class="w-full bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            {#if rejoining}
+              <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              Reconectando…
+            {:else}
+              <i class="fa-solid fa-rotate-right"></i>
+              {gameSocket.kicked || gameSocket.errorCode === 'KICKED' ? 'Intentar reingresar' : 'Reconectar'}
+            {/if}
+          </button>
+          <button onclick={() => goto('/')} class="w-full text-gray-600 hover:text-gray-400 text-sm py-2 transition-colors">
+            Salir al inicio
+          </button>
         </div>
       </div>
     </div>

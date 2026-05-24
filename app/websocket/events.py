@@ -19,7 +19,9 @@ class EventType(StrEnum):
     MODERATION = "moderation"
     # Dashboard
     ROOM_LIST = "room_list"
+    ROOM_CLOSED = "room_closed"
     PLAYER_STATE = "player_state"
+    MOD_ACK = "mod_ack"
     # Utility
     ERROR = "error"
     PONG = "pong"

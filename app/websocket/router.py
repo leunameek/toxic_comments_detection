@@ -16,6 +16,13 @@ from ..services.moderation_service import apply_strike
 router = APIRouter(prefix="/ws", tags=["WebSocket"])
 
 
+def _as_utc(dt: datetime) -> datetime:
+    """Return dt as UTC-aware; handles naive datetimes stored by SQLite."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 # ---------------------------------------------------------------------------
 # Auth helper
 # ---------------------------------------------------------------------------
@@ -128,7 +135,7 @@ async def _player_loop(ws: WebSocket, room: Room, user_id: str) -> None:
                 try:
                     user = db.get(User, user_id)
                     if user and user.status == "TIMEOUT":
-                        if user.timeout_until and user.timeout_until > datetime.now(timezone.utc):
+                        if user.timeout_until and _as_utc(user.timeout_until) > datetime.now(timezone.utc):
                             await manager.send(ws, make_event(
                                 EventType.TIMED_OUT,
                                 message="Estás en timeout y no puedes enviar mensajes.",
@@ -186,7 +193,15 @@ async def _player_loop(ws: WebSocket, room: Room, user_id: str) -> None:
     except WebSocketDisconnect:
         pass
     finally:
-        manager.remove_player(room.code, user_id)
+        # Record which team the player was on before freeing their slot
+        if user_id in room.team_a:
+            room.past_players[user_id] = "A"
+        elif user_id in room.team_b:
+            room.past_players[user_id] = "B"
+        room.team_a = [p for p in room.team_a if p != user_id]
+        room.team_b = [p for p in room.team_b if p != user_id]
+
+        room_closed = manager.remove_player(room.code, user_id)
         if not was_kicked:
             await manager.broadcast_room(room.code, make_event(
                 EventType.PLAYER_LEFT,
@@ -194,6 +209,8 @@ async def _player_loop(ws: WebSocket, room: Room, user_id: str) -> None:
                 team_a=room.team_a,
                 team_b=room.team_b,
             ))
+        if room_closed:
+            await manager.broadcast_dashboard(make_event(EventType.ROOM_CLOSED, code=room.code))
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +282,17 @@ async def ws_create_room(
     )
     manager.rooms[code] = room
 
+    # Notify all connected dashboard clients about the new room
+    await manager.broadcast_dashboard(make_event(
+        EventType.ROOM_CREATED,
+        code=code,
+        match_type=match_type,
+        max_players=room.max_players,
+        max_per_team=room.max_per_team,
+        status=room.status,
+        players_online=0,
+    ))
+
     await manager.send(ws, make_event(
         EventType.ROOM_CREATED,
         code=code,
@@ -317,7 +345,62 @@ async def ws_join_room(
         await ws.close()
         return
 
-    # Kick check — prevent rejoining the same room
+    # ── RECONNECT PATH ────────────────────────────────────────────────────────
+    # Player was in this room before (disconnected or kicked + pardoned).
+    prev_team = room.past_players.get(user_id)
+    if prev_team and user_id not in room.connections:
+        if user_id in room.kicked_users:
+            await manager.send(ws, make_event(EventType.ERROR, message="Fuiste expulsado y no puedes volver a unirte.", code="KICKED"))
+            await ws.close()
+            return
+
+        if room.status == "FINISHED":
+            await manager.send(ws, make_event(EventType.ERROR, message="La partida ya terminó."))
+            await ws.close()
+            return
+
+        # Restore to original team; for WAITING rooms check the slot is free
+        if room.status == "WAITING" and not room.can_join_team(prev_team):
+            await manager.send(ws, make_event(EventType.ERROR, message="Tu equipo ya está lleno."))
+            await ws.close()
+            return
+
+        display = username or room.usernames.get(user_id, user_id)
+        room.usernames[user_id] = display
+        if prev_team == "A":
+            room.team_a.append(user_id)
+        else:
+            room.team_b.append(user_id)
+        room.connections[user_id] = ws
+
+        await manager.send(ws, make_event(
+            EventType.ROOM_JOINED,
+            code=room.code,
+            match_type=room.match_type,
+            max_players=room.max_players,
+            max_per_team=room.max_per_team,
+            team=prev_team,
+            team_a=room.team_a,
+            team_b=room.team_b,
+            usernames=room.usernames,
+            score_a=room.score_a,
+            score_b=room.score_b,
+            current_round=room.current_round,
+            status=room.status,
+        ))
+        await manager.broadcast_room(room.code, make_event(
+            EventType.PLAYER_JOINED,
+            user_id=user_id,
+            username=display,
+            team=prev_team,
+            team_a=room.team_a,
+            team_b=room.team_b,
+            usernames=room.usernames,
+        ))
+        await _player_loop(ws, room, user_id)
+        return
+    # ── END RECONNECT PATH ────────────────────────────────────────────────────
+
     if user_id in room.kicked_users:
         await manager.send(ws, make_event(EventType.ERROR, message="Fuiste expulsado de esta sala y no puedes volver a unirte.", code="KICKED"))
         await ws.close()
@@ -456,7 +539,76 @@ async def ws_dashboard(
     try:
         while True:
             data = await ws.receive_json()
+
             if data.get("type") == "ping":
                 await manager.send(ws, {"type": "pong"})
+                continue
+
+            if data.get("type") == "mod_action":
+                payload = data.get("payload", {})
+                target_id = payload.get("user_id")
+                action = payload.get("action")  # BAN | KICK | TIMEOUT | WARN
+                reason = payload.get("reason", "Moderator action")
+
+                if not target_id or not action:
+                    await manager.send(ws, make_event(EventType.ERROR, message="mod_action requires user_id and action"))
+                    continue
+
+                db = SessionLocal()
+                try:
+                    user = db.get(User, target_id)
+                    if not user:
+                        await manager.send(ws, make_event(EventType.ERROR, message=f"User '{target_id}' not found"))
+                        continue
+
+                    from datetime import timedelta
+                    from ..models import ModerationAction
+
+                    if action == "BAN":
+                        user.status = "BANNED"
+                        user.timeout_until = None
+                    elif action == "KICK":
+                        user.status = "TIMEOUT"
+                        user.timeout_until = datetime.now(timezone.utc) + timedelta(seconds=180)
+                    elif action == "TIMEOUT":
+                        user.status = "TIMEOUT"
+                        user.timeout_until = datetime.now(timezone.utc) + timedelta(seconds=300)
+                    elif action == "WARN":
+                        user.status = "WARNED"
+                    elif action == "PARDON":
+                        user.status = "ACTIVE"
+                        user.timeout_until = None
+                        user.strikes = 0
+                        for r in manager.rooms.values():
+                            r.kicked_users.discard(target_id)
+
+                    db.add(ModerationAction(
+                        target_user_id=target_id,
+                        type=action,
+                        reason=reason,
+                        triggered_by="HUMAN",
+                    ))
+                    db.commit()
+                finally:
+                    db.close()
+
+                # Notify the target player if they are in a room
+                for room in manager.rooms.values():
+                    if target_id in room.connections:
+                        target_ws = room.connections[target_id]
+                        if action == "BAN":
+                            await manager.send(target_ws, make_event(EventType.ERROR, message="Has sido baneado por un moderador.", code="BANNED"))
+                            await target_ws.close(code=1008)
+                        elif action in ("KICK", "TIMEOUT"):
+                            await manager.send(target_ws, make_event(EventType.KICKED, reason=reason))
+                            await target_ws.close(code=1008)
+                        elif action == "WARN":
+                            await manager.send(target_ws, make_event(EventType.MODERATION, user_id=target_id, action="WARN", reason=reason))
+                        elif action == "PARDON":
+                            await manager.send(target_ws, make_event(EventType.MODERATION, user_id=target_id, action="PARDON", reason=reason))
+                        break
+
+                await manager.send(ws, make_event(EventType.MOD_ACK, user_id=target_id, action=action, success=True))
+
     except WebSocketDisconnect:
         manager.dashboard_connections.discard(ws)
